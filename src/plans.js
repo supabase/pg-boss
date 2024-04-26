@@ -82,6 +82,7 @@ function create (schema, version) {
     createVersionTable(schema),
     createJobStateEnum(schema),
     createJobTable(schema),
+    createHeartbeatTable(schema),
     cloneJobTableForArchive(schema),
     createScheduleTable(schema),
     createSubscriptionTable(schema),
@@ -158,6 +159,21 @@ function createJobTable (schema) {
   `
 }
 
+function createHeartbeatTable (schema) {
+  return `
+    CREATE TABLE ${schema}.heartbeat (
+      job_id uuid NOT NULL,
+      heartbeat_time integer NOT NULL,
+      last_heartbeat timestamp without time zone NOT NULL DEFAULT now(),
+        CONSTRAINT heartbeat_pkey PRIMARY KEY (job_id),
+        CONSTRAINT heartbeat_job_id_fkey FOREIGN KEY (job_id)
+            REFERENCES ${schema}.job (id) MATCH SIMPLE
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+  )
+  `
+}
+
 function cloneJobTableForArchive (schema) {
   return `CREATE TABLE ${schema}.archive (LIKE ${schema}.job)`
 }
@@ -204,7 +220,7 @@ function deleteAllQueues (schema, options = {}) {
 }
 
 function clearStorage (schema) {
-  return `TRUNCATE ${schema}.job, ${schema}.archive`
+  return `TRUNCATE ${schema}.job, ${schema}.archive CASCADE`
 }
 
 function getQueueSize (schema, options = {}) {

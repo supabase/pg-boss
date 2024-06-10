@@ -13,7 +13,7 @@ jobs:
     container: node:18
     strategy:
       matrix:
-        node: [ 18, 20 ]
+        node: [ 20 ]
     services:      
       postgres:
         image: postgres
@@ -24,7 +24,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          --command "postgres -c max_connections=300"
           
     steps:
     - name: Checkout code

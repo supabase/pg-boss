@@ -13,12 +13,13 @@ jobs:
     container: node:18
     strategy:
       matrix:
-        node: [ 16, 18 ]
+        node: [ 18, 20 ]
     services:      
       postgres:
         image: postgres
         env:
           POSTGRES_PASSWORD: postgres
+          POSTGRES_INITDB_ARGS: "-c max_connections=1500"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s

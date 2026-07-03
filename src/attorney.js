@@ -197,7 +197,6 @@ function applyArchiveConfig (config) {
   }
 }
 
-
 function applyCompletionConfig (config, defaults) {
   assert(!('onComplete' in config) || config.onComplete === true || config.onComplete === false,
     'configuration assert: onComplete must be either true or false')

@@ -695,17 +695,14 @@ function purge (schema, interval) {
 // USING with LIMIT: batches deletes to stay within the 30s statement_timeout set by locked().
 // WHERE id IN (subquery) was avoided as it can cause a double scan on large tables;
 // USING lets the planner execute a single Hash/Nested Loop join against the candidate rows.
-function archive (schema, completedInterval, failedInterval = completedInterval) {
+function archive (schema, completedInterval) {
   return `
     WITH archived_rows AS (
       DELETE FROM ${schema}.job j
       USING (
         SELECT id FROM ${schema}.job
         WHERE (
-            state <> '${states.failed}' AND completedOn < (now() - interval '${completedInterval}')
-          )
-          OR (
-            state = '${states.failed}' AND completedOn < (now() - interval '${failedInterval}')
+            completedOn < now() - interval '${completedInterval}'
           )
           OR (
             state < '${states.active}' AND keepUntil < now()

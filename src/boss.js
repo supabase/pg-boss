@@ -17,8 +17,12 @@ const events = {
 // flag values below are interpolated straight into SQL; only allow simple
 // "<number> <optional unit>" strings (e.g. '30s', '21600 seconds') so a
 // bad/malicious ConfigCat edit can't break the query or inject
-const INTERVAL_PATTERN = /^\d+\s*(ms|s|m|h|d|seconds?|minutes?|hours?|days?)$/i
+// Note: digit could be negative, but we don't want to support that
+// Note2: centuries, millienia also technical valid; but we don't want to support that either
+const INTERVAL_PATTERN = /^\d+\s*(ms|milliseconds?|s|seconds?|mins?|minutes?|h|hours?|d|days?|w|weeks?|m|months?|y|years?)$/i
+const TIMEOUT_PATTERN = /^\d+\s*(ms|s|min|h|d)$/i
 const isSQLInterval = (value) => typeof value === 'string' && INTERVAL_PATTERN.test(value.trim())
+const isSQLTimeout = (value) => typeof value === 'string' && TIMEOUT_PATTERN.test(value.trim())
 
 // Check we have a feature flag client with the required lookup method/func and use this to pull
 // the maintenance query params from the feature flag `archiveConfigFlagName`.
@@ -269,7 +273,7 @@ class Boss extends EventEmitter {
     if (flag) {
       if (isSQLInterval(flag.archiveJobAgeLimit)) archiveJobAgeLimit = flag.archiveJobAgeLimit
       if (Number.isInteger(flag.archiveBatchSize) && flag.archiveBatchSize > 0) archiveBatchSize = flag.archiveBatchSize
-      if (isSQLInterval(flag.statementTimeout)) statementTimeout = flag.statementTimeout
+      if (isSQLTimeout(flag.statementTimeout)) statementTimeout = flag.statementTimeout
     }
 
     const command = plans.locked(
@@ -314,3 +318,4 @@ class Boss extends EventEmitter {
 module.exports = Boss
 module.exports.QUEUES = queues
 module.exports.isSQLInterval = isSQLInterval
+module.exports.isSQLTimeout = isSQLTimeout

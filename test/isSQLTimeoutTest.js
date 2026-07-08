@@ -1,28 +1,14 @@
 const assert = require('assert')
-const { isSQLInterval } = require('../src/boss')
+const { isSQLTimeout } = require('../src/boss')
 
 const valid = [
-  '60 seconds',
-  '21600 seconds',
-  '60 second',
-  '30 minutes',
-  '30 minute',
-  '2 hours',
-  '2 hour',
-  '3hour',
-  '1 days',
-  '1 day',
-  '3day',
-  '1 week',
+  '7d',
   '30s',
   '2h',
   '20min',
   '500 ms',
   '500ms',
-  '  30s  ', // trimmed
-  '1m',
-  '7d',
-  '1 year',
+  '  30s  ' // trimmed
 ]
 
 const invalid = [
@@ -36,11 +22,26 @@ const invalid = [
   '',
   'abc',
   '1x',
+  '1m',
+  '1.5s',
+  '1 week',
+  '1 year',
   '1s; DROP TABLE jobs',
   "1' OR '1'='1",
   '1s 2m',
   '-1s',
-  '1.5s',
+  '500 millisecondss',
+  '500milliseconds',
+  '60 seconds',
+  '21600 seconds',
+  '60 second',
+  '30 minutes',
+  '30 minute',
+  '2 hours',
+  '2 hour',
+  '1 days',
+  '1 day',
+  '  30seconds  ' // trimmed
 ]
 
 let passed = 0
@@ -57,12 +58,12 @@ function test (name, fn) {
   }
 }
 
-console.log('isSQLInterval')
+console.log('isSQLTimeout')
 for (const v of valid) {
-  test(`accepts ${JSON.stringify(v)}`, () => assert.strictEqual(isSQLInterval(v), true))
+  test(`accepts ${JSON.stringify(v)}`, () => assert.strictEqual(isSQLTimeout(v), true))
 }
 for (const v of invalid) {
-  test(`rejects ${JSON.stringify(v)}`, () => assert.strictEqual(isSQLInterval(v), false))
+  test(`rejects ${JSON.stringify(v)}`, () => assert.strictEqual(isSQLTimeout(v), false))
 }
 
 process.stdout.write(`\n${passed} passing, ${failed} failing\n`)

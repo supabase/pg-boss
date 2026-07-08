@@ -24,6 +24,7 @@
   },
   "scripts": {
     "test": "standard && mocha",
+    "test:unit": "node test/isSQLIntervalTest.js",
     "cover": "nyc npm test",
     "export-schema": "node ./scripts/construct.js",
     "export-migration": "node ./scripts/migrate.js",

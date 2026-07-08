@@ -17,7 +17,7 @@ const events = {
 // flag values below are interpolated straight into SQL; only allow simple
 // "<number> <optional unit>" strings (e.g. '30s', '21600 seconds') so a
 // bad/malicious ConfigCat edit can't break the query or inject
-const INTERVAL_PATTERN = /^\d+\s*(ms|s|m|h|d|seconds?|minutes?|hours?|days?)?$/i
+const INTERVAL_PATTERN = /^\d+\s*(ms|s|m|h|d|seconds?|minutes?|hours?|days?)$/i
 const isSQLInterval = (value) => typeof value === 'string' && INTERVAL_PATTERN.test(value.trim())
 
 // Check we have a feature flag client with the required lookup method/func and use this to pull
@@ -30,13 +30,13 @@ const getMaintenanceConfigFromFlag = async (config, emitError) => {
   const {
     featureFlagClient: client,
     archiveConfigFlagName: flagName
-  } = config;
+  } = config
 
-  if(
-    !client
-    || typeof client.getValueAsync !== 'function'
-    || !flagName
-  ){
+  if (
+    !client ||
+    typeof client.getValueAsync !== 'function' ||
+    !flagName
+  ) {
     return flag
   }
 
@@ -50,7 +50,7 @@ const getMaintenanceConfigFromFlag = async (config, emitError) => {
     emitError(new Error(`[pg-boss] could not fetch/parse ${flagName} flag; using configured defaults`))
   }
 
-  return flag;
+  return flag
 }
 
 class Boss extends EventEmitter {
@@ -313,3 +313,4 @@ class Boss extends EventEmitter {
 
 module.exports = Boss
 module.exports.QUEUES = queues
+module.exports.isSQLInterval = isSQLInterval

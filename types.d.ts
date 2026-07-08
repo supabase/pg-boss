@@ -36,7 +36,7 @@ declare namespace PgBoss {
     maintenanceInterval?: number;
     // Max age of job to be archived, e.g. '21600 seconds'
     archiveJobAgeLimit?: string;
-    // Number of rows to purge in 1 go, e.g. 10000 [default: 100000]
+    // Number of rows to archive in 1 go, e.g. 10000 [default: 100000]
     archiveBatchSize?: number;
     // Transaction statement timeout for maintenance query, e.g. '30s' [default '30s']
     statementTimeout?: string;

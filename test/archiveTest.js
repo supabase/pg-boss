@@ -79,24 +79,8 @@ describe('archive', function () {
     assert.strictEqual(queue, archivedJob.name)
   })
 
-  it('should not archive a failed job before the config setting', async function () {
-    const config = { ...this.test.bossConfig, ...defaults, archiveFailedAfterSeconds: 10 }
-    const boss = this.test.boss = await helper.start(config)
-    const queue = this.test.bossConfig.schema
-
-    const failPayload = { someReason: 'nuna' }
-    const jobId = await boss.send(queue, null, { retentionSeconds: 1 })
-
-    await boss.fail(jobId, failPayload)
-    await delay(7000)
-
-    const archivedJob = await helper.getArchivedJobById(config.schema, jobId)
-
-    assert.strictEqual(archivedJob, null)
-  })
-
   it('should archive a failed job', async function () {
-    const config = { ...this.test.bossConfig, maintenanceIntervalSeconds: 1, archiveFailedAfterSeconds: 1 }
+    const config = { ...this.test.bossConfig, maintenanceIntervalSeconds: 1, archiveCompletedAfterSeconds: 1 }
     const boss = this.test.boss = await helper.start(config)
     const queue = this.test.bossConfig.schema
 
@@ -111,5 +95,44 @@ describe('archive', function () {
     assert.strictEqual(jobId, archivedJob.id)
     assert.strictEqual(queue, archivedJob.name)
     assert.strictEqual(states.failed, archivedJob.state)
+  })
+
+  const fakeFlagClient = (value) => ({ getValueAsync: async () => value })
+  const archiveConfigFlagName = 'archive-config'
+
+  it('should apply archiveJobAgeLimit from the feature flag over config', async function () {
+    // config says archive after 1s, but the flag raises the age limit to 1h -> nothing archived
+    const featureFlagClient = fakeFlagClient(JSON.stringify({ archiveJobAgeLimit: '3600 seconds' }))
+    const config = { ...this.test.bossConfig, ...defaults, featureFlagClient, archiveConfigFlagName }
+    const boss = this.test.boss = await helper.start(config)
+    const queue = this.test.bossConfig.schema
+
+    const jobId = await boss.send(queue)
+    await boss.fetch(queue)
+    await boss.complete(jobId)
+
+    await delay(4000)
+
+    const archivedJob = await helper.getArchivedJobById(config.schema, jobId)
+
+    assert.strictEqual(archivedJob, null)
+  })
+
+  it('should fall back to config when the feature flag is malformed', async function () {
+    const featureFlagClient = fakeFlagClient('not valid json{')
+    const config = { ...this.test.bossConfig, ...defaults, featureFlagClient, archiveConfigFlagName }
+    const boss = this.test.boss = await helper.start(config)
+    const queue = this.test.bossConfig.schema
+
+    const jobId = await boss.send(queue)
+    await boss.fetch(queue)
+    await boss.complete(jobId)
+
+    await delay(4000)
+
+    const archivedJob = await helper.getArchivedJobById(config.schema, jobId)
+
+    assert.strictEqual(jobId, archivedJob.id)
+    assert.strictEqual(queue, archivedJob.name)
   })
 })

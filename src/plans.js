@@ -63,14 +63,14 @@ module.exports = {
   DEFAULT_SCHEMA
 }
 
-function locked (schema, query) {
+function locked (schema, query, timeout = '30s') {
   if (Array.isArray(query)) {
     query = query.join(';\n')
   }
 
   return `
     BEGIN;
-    SET LOCAL statement_timeout = '30s';
+    SET LOCAL statement_timeout = '${timeout}';
     ${advisoryLock(schema)};
     ${query};
     COMMIT;
@@ -695,22 +695,19 @@ function purge (schema, interval) {
 // USING with LIMIT: batches deletes to stay within the 30s statement_timeout set by locked().
 // WHERE id IN (subquery) was avoided as it can cause a double scan on large tables;
 // USING lets the planner execute a single Hash/Nested Loop join against the candidate rows.
-function archive (schema, completedInterval, failedInterval = completedInterval) {
+function archive (schema, completedAge, limit = 100000) {
   return `
     WITH archived_rows AS (
       DELETE FROM ${schema}.job j
       USING (
         SELECT id FROM ${schema}.job
         WHERE (
-            state <> '${states.failed}' AND completedOn < (now() - interval '${completedInterval}')
-          )
-          OR (
-            state = '${states.failed}' AND completedOn < (now() - interval '${failedInterval}')
+            completedOn < now() - interval '${completedAge}'
           )
           OR (
             state < '${states.active}' AND keepUntil < now()
           )
-        LIMIT 100000
+        LIMIT ${limit}
       ) candidates
       WHERE j.id = candidates.id
       RETURNING j.*

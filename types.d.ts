@@ -31,6 +31,16 @@ declare namespace PgBoss {
     clockMonitorIntervalSeconds?: number;
     clockMonitorIntervalMinutes?: number;
   }
+  interface ArchiveFeatureFlag {
+    // When maintenance job should run (seconds), e.g. 30 [default: configured at PgBoss client instantiation]
+    maintenanceInterval?: number;
+    // Max age of job to be archived, e.g. '21600 seconds'
+    archiveJobAgeLimit?: string;
+    // Number of rows to archive in 1 go, e.g. 10000 [default: 100000]
+    archiveBatchSize?: number;
+    // Transaction statement timeout for maintenance query, e.g. '30s' [default '30s']
+    statementTimeout?: string;
+  }
 
   interface MaintenanceOptions {
     noSupervisor?: boolean;
@@ -44,7 +54,10 @@ declare namespace PgBoss {
     maintenanceIntervalMinutes?: number;
 
     archiveCompletedAfterSeconds?: number;
-    archiveFailedAfterSeconds?: number;
+
+    // getValueAsync returns the raw flag value; pg-boss JSON.parses it into an ArchiveFeatureFlag
+    featureFlagClient?: { getValueAsync(key: string, defaultValue: string | null): Promise<string | null> };
+    archiveConfigFlagName?: string;
   }
 
   type ConstructorOptions =

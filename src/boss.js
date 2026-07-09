@@ -14,6 +14,49 @@ const events = {
   maintenance: 'maintenance'
 }
 
+// flag values below are interpolated straight into SQL; only allow simple
+// "<number> <optional unit>" strings (e.g. '30s', '21600 seconds') so a
+// bad/malicious ConfigCat edit can't break the query or inject
+// Note: digit could be negative, but we don't want to support that
+// Note2: centuries, millienia also technical valid; but we don't want to support that either
+const INTERVAL_PATTERN = /^\d+\s*(ms|milliseconds?|s|seconds?|mins?|minutes?|h|hours?|d|days?|w|weeks?|m|months?|y|years?)$/i
+const TIMEOUT_PATTERN = /^\d+\s*(ms|s|min|h|d)$/i
+const isSQLInterval = (value) => typeof value === 'string' && INTERVAL_PATTERN.test(value.trim())
+const isSQLTimeout = (value) => typeof value === 'string' && TIMEOUT_PATTERN.test(value.trim())
+
+// Check we have a feature flag client with the required lookup method/func and use this to pull
+// the maintenance query params from the feature flag `archiveConfigFlagName`.
+//
+// @returns JSON | null
+const getMaintenanceConfigFromFlag = async (config, emitError) => {
+  let flag = null
+
+  const {
+    featureFlagClient: client,
+    archiveConfigFlagName: flagName
+  } = config
+
+  if (
+    !client ||
+    typeof client.getValueAsync !== 'function' ||
+    !flagName
+  ) {
+    return flag
+  }
+
+  try {
+    // ConfigCat auto-polls every 60s; getValueAsync reads the in-memory cache, no network call per invocation
+    const f = await client.getValueAsync(flagName, null)
+    flag = f ? JSON.parse(f) : null
+  } catch (_err) { /* FF unavailable or unparseable — fall back to configured defaults */ }
+
+  if (!flag) {
+    emitError(new Error(`[pg-boss] could not fetch/parse ${flagName} flag; using configured defaults`))
+  }
+
+  return flag
+}
+
 class Boss extends EventEmitter {
   constructor (db, config) {
     super()
@@ -33,7 +76,6 @@ class Boss extends EventEmitter {
     this.events = events
 
     this.expireCommand = plans.locked(config.schema, plans.expire(config.schema))
-    this.archiveCommand = plans.locked(config.schema, plans.archive(config.schema, config.archiveInterval, config.archiveFailedInterval))
     this.purgeCommand = plans.locked(config.schema, plans.purge(config.schema, config.deleteAfter))
     this.getMaintenanceTimeCommand = plans.getMaintenanceTime(config.schema)
     this.setMaintenanceTimeCommand = plans.setMaintenanceTime(config.schema)
@@ -127,10 +169,12 @@ class Boss extends EventEmitter {
         throw new Error(this.config.__test__throw_maint)
       }
 
+      // [optionally] pull maintenance query details from a feature flag
+      const flag = await getMaintenanceConfigFromFlag(this.config, (e) => this.emit(events.error, e))
       const started = Date.now()
 
       await this.expire()
-      await this.archive()
+      await this.archive(flag)
       await this.purge()
 
       const ended = Date.now()
@@ -141,7 +185,12 @@ class Boss extends EventEmitter {
 
       if (!this.stopped) {
         await this.manager.complete(job.id) // pre-complete to bypass throttling
-        await this.maintenanceAsync({ startAfter: this.maintenanceIntervalSeconds })
+        // maintenanceInterval = 0 -- Invalid
+        // maintenanceInterval < 20 -- likely impractical, but depends on user workload. So we don't enforce a minimum
+        const maintenanceInterval = (flag && Number.isFinite(flag.maintenanceInterval) && flag.maintenanceInterval > 0)
+          ? flag.maintenanceInterval
+          : this.maintenanceIntervalSeconds // lib defaults | client config
+        await this.maintenanceAsync({ startAfter: maintenanceInterval })
       }
     } catch (err) {
       this.emit(events.error, err)
@@ -216,8 +265,23 @@ class Boss extends EventEmitter {
     await this.executeSql(this.expireCommand)
   }
 
-  async archive () {
-    await this.executeSql(this.archiveCommand)
+  async archive (flag = null) {
+    let archiveJobAgeLimit = this.config.archiveInterval
+    let archiveBatchSize // use default in plans.archive() func
+    let statementTimeout // use default in plans.locked() func
+
+    if (flag) {
+      if (isSQLInterval(flag.archiveJobAgeLimit)) archiveJobAgeLimit = flag.archiveJobAgeLimit
+      if (Number.isInteger(flag.archiveBatchSize) && flag.archiveBatchSize > 0) archiveBatchSize = flag.archiveBatchSize
+      if (isSQLTimeout(flag.statementTimeout)) statementTimeout = flag.statementTimeout
+    }
+
+    const command = plans.locked(
+      this.config.schema,
+      plans.archive(this.config.schema, archiveJobAgeLimit, archiveBatchSize),
+      statementTimeout
+    )
+    await this.executeSql(command)
   }
 
   async purge () {
@@ -253,3 +317,5 @@ class Boss extends EventEmitter {
 
 module.exports = Boss
 module.exports.QUEUES = queues
+module.exports.isSQLInterval = isSQLInterval
+module.exports.isSQLTimeout = isSQLTimeout
